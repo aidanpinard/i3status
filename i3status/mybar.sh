@@ -70,8 +70,8 @@ network_activity() {
   local txtmp=$(cat /sys/class/net/wlan0/statistics/tx_bytes)
   txtmp+=$(cat /sys/class/net/enp2s0/statistics/tx_bytes)
 
-  down_speed=$(~/bin/i3status/i3status/convert-to-bps $rx $rxtmp $delay)
-  up_speed=$(~/bin/i3status/i3status/convert-to-bps $tx $txtmp $delay)
+  down_speed=$(~/bin/i3status/i3status/binaries/convert-to-bps $rx $rxtmp $delay)
+  up_speed=$(~/bin/i3status/i3status/binaries/convert-to-bps $tx $txtmp $delay)
 
   rx=$rxtmp
   tx=$txtmp
