@@ -11,6 +11,7 @@ delay=1
 CPU_PREV_TOTAL=0
 CPU_PREV_IDLE=0
 LAST_UPDATE=1970-01-01-00
+UPDATES=0
 
 # Print a left caret separator
 # @params {string} $1 text color, ex: "#FF0000"
@@ -62,8 +63,8 @@ network_activity() {
   local up_icon=""
   local down_icon=""
   
-  down_speed=$(~/bin/i3status/i3status/binaries/network-speed rx)
-  up_speed=$(~/bin/i3status/i3status/binaries/network-speed tx)
+  down_speed=$(~/bin/i3status/i3status/binaries/network-speed rx 0)
+  up_speed=$(~/bin/i3status/i3status/binaries/network-speed tx 0)
   
   separator $bg $bg_separator_previous
   bg_separator_previous=$bg
@@ -144,6 +145,14 @@ battery1() {
     icon=""
     if [ "$charging" == "Charging" ]; then
       icon=""
+    elif (( $prct >= 75 && $prct < 90 )); then
+      icon=""
+    elif (( $prct >= 50 && $prct < 75 )); then
+      icon=""
+    elif (( $prct >= 25 && $prct < 50 )); then
+      icon=""
+    elif (( $prct < 25 )); then
+      icon=""
     fi
     echo -n ",{"
     echo -n "\"name\":\"battery0\","
@@ -188,17 +197,26 @@ mydate() {
 systemupdate() {
   TODAY=$(date +%Y-%m-%d-%H)
   if [[ "$TODAY" > "$LAST_UPDATE" ]]; then
-    local updates=$(checkupdates 2> /dev/null || checkupdates 2> /dev/null | wc -l)
-    local aur_updates=$(checkupdates-aur 2>/dev/null || checkupdates-aur 2>/dev/null | wc -l)
-    updates=$((updates + aur_updates))
-    if (( $updates > 0)); then
-      echo -n ",{"
-      echo -n "\"name\":\"id_systemupdate\","
-      echo -n "\"full_text\":\"  ${updates}\""
-      echo -n "}"
+    UPDATES=$(checkupdates 2> /dev/null | wc -l || checkupdates 2> /dev/null | wc -l)
+    local aur_updates=$(checkupdates-aur 2>/dev/null | wc -l || checkupdates-aur 2>/dev/null | wc -l)
+    UPDATES=$((UPDATES + aur_updates))
+    if (( $UPDATES == 0 )); then
+      LAST_UPDATE="$TODAY"
     fi
-    LAST_UPDATE="$TODAY"
   fi
+  if (( $UPDATES > 0)); then
+    echo -n ",{"
+    echo -n "\"name\":\"id_systemupdate\","
+    echo -n "\"full_text\":\"  ${UPDATES}\""
+    echo -n "}"
+  fi
+}
+
+display_off() {
+  echo -n ",{"
+  echo -n "\"name\":\"id_display_off\","
+  echo -n "\"full_text\":\"  \""
+  echo -n "}"
 }
 
 logout() {
@@ -226,6 +244,7 @@ do
   volume
   mydate
   systemupdate
+  display_off
   logout
   echo "]"
 	sleep "$delay"
@@ -234,9 +253,6 @@ done) &
 # click events
 while read line;
 do
-  # echo $line > /home/you/gitclones/github/i3/tmp.txt
-  # {"name":"id_vpn","button":1,"modifiers":["Mod2"],"x":2982,"y":9,"relative_x":67,"relative_y":9,"width":95,"height":22}
-
   # VPN click
   if [[ $line == *"name"*"id_vpn"* ]]; then
     xterm -e /home/aidan/bin/i3status/i3status/click_vpn.sh &
@@ -244,6 +260,7 @@ do
   # CHECK UPDATES
   elif [[ $line == *"name"*"id_systemupdate"* ]]; then
     xterm -e /home/aidan/bin/i3status/i3status/click_checkupdates.sh &
+    systemupdate > /dev/null
 
   # CPU
   elif [[ $line == *"name"*"id_cpu_usage"* ]]; then
@@ -256,6 +273,11 @@ do
   # VOLUME
   elif [[ $line == *"name"*"id_volume"* ]]; then
     xterm -e alsamixer &
+  
+  # TURN OFF DISPLAY
+  elif [[ $line == *"name"*"id_display_off"* ]]; then
+    sleep 1
+    xset dpms force off
 
   # LOGOUT
   elif [[ $line == *"name"*"id_logout"* ]]; then
