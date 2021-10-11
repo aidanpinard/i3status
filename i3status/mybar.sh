@@ -6,7 +6,11 @@
 # }
 
 bg_bar_color="#000000"
-delay="1"
+delay=1
+
+CPU_PREV_TOTAL=0
+CPU_PREV_IDLE=0
+LAST_UPDATE=1970-01-01-00
 
 # Print a left caret separator
 # @params {string} $1 text color, ex: "#FF0000"
@@ -74,9 +78,19 @@ network_activity() {
 disk_usage() {
   local bg="#3949AB"
   separator $bg $bg_separator_previous
+  local used=0
+  local avail=0
+  local temp=0
+  while read -r i
+  do 
+      temp=$(echo -n $i | awk '{print $2}')
+      used=$(( $used+$temp ))
+      temp=$(echo -n $i | awk '{print $3}')
+      avail=$(( $avail+$temp ))
+  done <<<$(df --output=source,used,avail | \grep --color=auto '/dev/*')
   echo -n ",{"
   echo -n "\"name\":\"id_disk_usage\","
-  echo -n "\"full_text\":\"  $(/home/aidan/bin/i3status/i3status/disk.py)%\","
+  echo -n "\"full_text\":\"  $(awk "BEGIN {printf \"%.1f\", ${used}*100/${avail}}")%\","
   echo -n "\"background\":\"$bg\","
   common
   echo -n "}"
@@ -85,16 +99,35 @@ disk_usage() {
 memory() {
   echo -n ",{"
   echo -n "\"name\":\"id_memory\","
-  echo -n "\"full_text\":\"  $(/home/aidan/bin/i3status/i3status/memory.py)%\","
+  echo -n "\"full_text\":\"  $(free -b | awk '/Mem:/ { printf "%.1f", ($2-$7)*100/$2 }')%\","
   echo -n "\"background\":\"#3949AB\","
   common
   echo -n "}"
 }
 
 cpu_usage() {
+  # Get the total CPU statistics, discarding the 'cpu ' prefix.
+  CPU=($(sed -n 's/^cpu\s//p' /proc/stat))
+  IDLE=${CPU[3]} # Just the idle CPU time.
+ 
+  # Calculate the total CPU time.
+  TOTAL=0
+  for VALUE in "${CPU[@]:0:8}"; do
+    TOTAL=$((TOTAL+VALUE))
+  done
+ 
+  # Calculate the CPU usage since we last checked.
+  DIFF_IDLE=$((IDLE-PREV_IDLE))
+  DIFF_TOTAL=$((TOTAL-PREV_TOTAL))
+  DIFF_USAGE=$(awk "BEGIN {printf \"%.1f\", (1000 * ($DIFF_TOTAL - $DIFF_IDLE) / $DIFF_TOTAL+5)/10}")
+ 
+  # Remember the total and idle CPU times for the next check.
+  PREV_TOTAL="$TOTAL"
+  PREV_IDLE="$IDLE"
+
   echo -n ",{"
   echo -n "\"name\":\"id_cpu_usage\","
-  echo -n "\"full_text\":\"  $(/home/aidan/bin/i3status/i3status/cpu.py)% \","
+  echo -n "\"full_text\":\"  $DIFF_USAGE% \","
   echo -n "\"background\":\"#3949AB\","
   common
   echo -n "},"
@@ -153,12 +186,18 @@ mydate() {
 }
 
 systemupdate() {
-  local nb=$(checkupdates &>/dev/null | wc -l)
-  if (( $nb > 0)); then
-    echo -n ",{"
-    echo -n "\"name\":\"id_systemupdate\","
-    echo -n "\"full_text\":\"  ${nb}\""
-    echo -n "}"
+  TODAY=$(date +%Y-%m-%d-%H)
+  if [[ "$TODAY" > "$LAST_UPDATE" ]]; then
+    local updates=$(checkupdates 2> /dev/null || checkupdates 2> /dev/null | wc -l)
+    local aur_updates=$(checkupdates-aur 2>/dev/null || checkupdates-aur 2>/dev/null | wc -l)
+    updates=$((updates + aur_updates))
+    if (( $updates > 0)); then
+      echo -n ",{"
+      echo -n "\"name\":\"id_systemupdate\","
+      echo -n "\"full_text\":\"  ${updates}\""
+      echo -n "}"
+    fi
+    LAST_UPDATE="$TODAY"
   fi
 }
 
