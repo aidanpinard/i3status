@@ -8,12 +8,6 @@
 bg_bar_color="#000000"
 delay="1"
 
-# Initialization of needed globals
-rx=$(cat /sys/class/net/wlan0/statistics/rx_bytes)
-rx+=$(cat /sys/class/net/enp2s0/statistics/rx_bytes)
-tx=$(cat /sys/class/net/wlan0/statistics/tx_bytes)
-tx+=$(cat /sys/class/net/enp2s0/statistics/tx_bytes)
-
 # Print a left caret separator
 # @params {string} $1 text color, ex: "#FF0000"
 # @params {string} $2 background color, ex: "#FF0000"
@@ -63,18 +57,9 @@ network_activity() {
   local bg="#008000" # green
   local up_icon=""
   local down_icon=""
-  #return  
   
-  local rxtmp=$(cat /sys/class/net/wlan0/statistics/rx_bytes)
-  rxtmp+=$(cat /sys/class/net/enp2s0/statistics/rx_bytes)
-  local txtmp=$(cat /sys/class/net/wlan0/statistics/tx_bytes)
-  txtmp+=$(cat /sys/class/net/enp2s0/statistics/tx_bytes)
-
-  down_speed=$(~/bin/i3status/i3status/binaries/convert-to-bps $rx $rxtmp $delay)
-  up_speed=$(~/bin/i3status/i3status/binaries/convert-to-bps $tx $txtmp $delay)
-
-  rx=$rxtmp
-  tx=$txtmp
+  down_speed=$(~/bin/i3status/i3status/binaries/network-speed rx)
+  up_speed=$(~/bin/i3status/i3status/binaries/network-speed tx)
   
   separator $bg $bg_separator_previous
   bg_separator_previous=$bg
