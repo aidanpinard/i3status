@@ -5,11 +5,14 @@
 #   status_command exec /home/aidan/bin/i3status/i3status//mybar.sh
 # }
 
+trap 'kill $(jobs -p)' EXIT SIGINT SIGTERM
+
 bg_bar_color="#000000"
 delay=1
 
 CPU_PREV_TOTAL=0
 CPU_PREV_IDLE=0
+echo "0" > /dev/shm/usemb
 LAST_UPDATE=1970-01-01-00
 UPDATES=0
 
@@ -62,9 +65,10 @@ network_activity() {
   local bg="#008000" # green
   local up_icon=""
   local down_icon=""
-  
-  down_speed=$(~/bin/i3status/i3status/binaries/network-speed rx 0)
-  up_speed=$(~/bin/i3status/i3status/binaries/network-speed tx 0)
+  local useMB=$(</dev/shm/usemb)
+  echo 
+  down_speed=$(~/bin/i3status/i3status/binaries/network-speed rx $useMB)
+  up_speed=$(~/bin/i3status/i3status/binaries/network-speed tx $useMB)
   
   separator $bg $bg_separator_previous
   bg_separator_previous=$bg
@@ -256,6 +260,18 @@ do
   # VPN click
   if [[ $line == *"name"*"id_vpn"* ]]; then
     xterm -e /home/aidan/bin/i3status/i3status/click_vpn.sh &
+  
+  # network click
+  elif [[ $line == *"name"*"id_network"* ]]; then
+    if [[ $line == *"button\":3"* ]]; then
+      if [[ $(</dev/shm/usemb) == "0" ]]; then
+        echo "1" > /dev/shm/usemb
+      else
+        echo "0" > /dev/shm/usemb
+      fi
+    else
+      xterm -e bandwhich &
+    fi
 
   # CHECK UPDATES
   elif [[ $line == *"name"*"id_systemupdate"* ]]; then
@@ -263,7 +279,9 @@ do
     systemupdate > /dev/null
 
   # CPU
-  elif [[ $line == *"name"*"id_cpu_usage"* ]]; then
+  elif [[ $line == *"name"*"id_cpu_usage"* ]] \
+    || [[ $line == *"name"*"id_memory"* ]] \
+    || [[ $line == *"name"*"id_disk_usage"* ]]; then
     xterm -e htop &
 
   # TIME

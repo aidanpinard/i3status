@@ -72,8 +72,6 @@ int main(int argc, char* argv[]) {
     if ((strcmp(argv[1], "rx") != 0) && (strcmp(argv[1], "tx") != 0)) {
         return 1;
     }
-    
-    int use_megabit = argc ==  3 ? strcmp("1", argv[2]) : 0;
 
     char enp2s0_statistics[42];
     char wlan0_statistics[42];
@@ -99,11 +97,11 @@ int main(int argc, char* argv[]) {
     if (diff == 0) {
         diff = 1;
     }
-
-    if (use_megabit) {
-        printBitsPerSecond((bytes - last_bytes)/diff);
-    } else {
+    
+    if (argc == 3 && strcmp(argv[2], "1") == 0) {
         printBytesPerSecond((bytes - last_bytes)/diff);
+    } else {
+        printBitsPerSecond((bytes - last_bytes)/diff);
     }
     
     writeBytes(cache_file, bytes);
