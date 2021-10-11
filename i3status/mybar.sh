@@ -10,11 +10,53 @@ trap 'kill $(jobs -p)' EXIT SIGINT SIGTERM
 bg_bar_color="#000000"
 delay=1
 
+#GLOBALS
+
+# CPU Frequency
 CPU_PREV_TOTAL=0
 CPU_PREV_IDLE=0
-echo "0" > /dev/shm/usemb
+
+# Network
+last_time=0
+last_rx=0
+last_tx=0
+ifaces=$(ls /sys/class/net | grep -E '^(eno|enp|ens|enx|eth|wlan|wlp)')
+
+# System Update
 LAST_UPDATE=1970-01-01-00
 UPDATES=0
+
+# Helpers
+readable_mibps() {
+  local bytes=$1
+  local kib=$(( bytes >> 10 ))
+  if [ $kib -lt 0 ]; then
+    echo "? K"
+  elif [ $kib -gt 1024 ]; then
+    local mib_int=$(( kib >> 10 ))
+    local mib_dec=$(( kib % 1024 * 976 / 10000 ))
+    if [ "$mib_dec" -lt 10 ]; then
+      mib_dec="0${mib_dec}"
+    fi
+    echo "${mib_int}.${mib_dec}MiB/s"
+  else
+    echo "${kib}KiB/s"
+  fi
+}
+
+readable_mbps() {
+  local bytes=$1
+  local kbps=$(( bytes >> 7 ))
+  if [ $kbps -lt 0 ]; then
+    echo "? K"
+  elif [ $kbps -gt 1000 ]; then
+    local mbps_int=$(( kbps / 1000 ))
+    local mbps_dec=$(awk 'BEGIN { print int((((kbps%1000)/10)+10)/10)')
+    echo "${mbps_int}.${mbps_dec}Mbps"
+  else
+    echo "${kbps}Kbps"
+  fi
+}
 
 # Print a left caret separator
 # @params {string} $1 text color, ex: "#FF0000"
@@ -44,6 +86,8 @@ common() {
   echo -n "\"border_right\":0"
 }
 
+# Status bar Functions
+
 myvpn_on() {
   local bg="#424242" # grey darken-3
   local icon=""
@@ -63,18 +107,36 @@ myvpn_on() {
 
 network_activity() {
   local bg="#008000" # green
-  local up_icon=""
-  local down_icon=""
-  local useMB=$(</dev/shm/usemb)
-  echo 
-  down_speed=$(~/bin/i3status/i3status/binaries/network-speed rx $useMB)
-  up_speed=$(~/bin/i3status/i3status/binaries/network-speed tx $useMB)
+  local time=$(date +%s)
+  local rx=0 tx=0 tmp_rx tmp_tx
+
+  for iface in $ifaces; do
+    read tmp_rx < "/sys/class/net/${iface}/statistics/rx_bytes"
+    read tmp_tx < "/sys/class/net/${iface}/statistics/tx_bytes"
+    rx=$(( rx + tmp_rx ))
+    tx=$(( tx + tmp_tx ))
+  done
+
+  local interval=$(( $time - $last_time ))
+  if [ $interval -gt 0 ]; then
+    if [[ $(</dev/shm/usemb) == "0" ]]; then
+      rate="$(readable_mbps $(( (tx - last_tx) / interval )))  $(readable_mbps $(( (rx - last_rx) / interval ))) "
+    else
+      rate="$(readable_mibps $(( (tx - last_tx) / interval )))  $(readable_mibps $(( (rx - last_rx) / interval ))) "
+    fi
+  else
+    rate=" "
+  fi
+
+  last_time=$time
+  last_rx=$rx
+  last_tx=$tx
   
   separator $bg $bg_separator_previous
   bg_separator_previous=$bg
   echo -n ",{"
   echo -n "\"name\":\"id_network\","      
-  echo -n "\"full_text\":\" ${up_speed} ${up_icon} ${down_speed} ${down_icon} \","
+  echo -n "\"full_text\":\" ${rate} \","
   echo -n "\"background\":\"$bg\","
   common
   echo -n "},"
@@ -263,7 +325,7 @@ do
   
   # network click
   elif [[ $line == *"name"*"id_network"* ]]; then
-    if [[ $line == *"button\":3"* ]]; then
+      if [[ $line == *"button\":3"* ]]; then
       if [[ $(</dev/shm/usemb) == "0" ]]; then
         echo "1" > /dev/shm/usemb
       else

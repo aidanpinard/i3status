@@ -60,7 +60,7 @@ pip3 install psutil --user # for cpu, memory, disk usage
 
 What was done:
 - Removed Python Scripts due to high load times and replaced with bash scripts
-- Added network speed monitor using simple C program
+- Added network speed monitor using bash based on <https://github.com/i3/i3status/blob/master/contrib/net-speed.sh>
 - Changed separators to automatically work with different colours
 - Changed vpn script to work with ncmli
 - Added display off button
