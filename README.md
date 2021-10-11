@@ -1,4 +1,4 @@
-# i3 status bar
+# i3 status bar (Original)
 
 This is a sample code to help you to build your personnal i3 bar.
 
@@ -55,3 +55,14 @@ pip3 install psutil --user # for cpu, memory, disk usage
 - <https://i3wm.org/i3status/manpage.html>
 - <https://github.com/i3/i3status/tree/master/contrib>
 - <https://fontawesome.com/cheatsheet?from=io>
+
+# My Custom Stuff
+
+What was done:
+- Removed Python Scripts due to high load times and replaced with bash scripts
+- Added network speed monitor using simple C program
+- Changed separators to automatically work with different colours
+- Changed vpn script to work with ncmli
+- Added display off button
+- Added multiple battery fill icons
+- Switched calls to alacritty for xterm (which I use)
