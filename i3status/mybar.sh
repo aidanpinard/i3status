@@ -12,6 +12,11 @@ delay=1
 
 #GLOBALS
 
+# Music Rotation
+CURRENT_POS=0
+CHAR_LIMIT=30
+CURRENT_STRING=""
+
 # CPU Frequency
 CPU_PREV_TOTAL=0
 CPU_PREV_IDLE=0
@@ -56,6 +61,23 @@ readable_mbps() {
   else
     echo "${kbps}Kbps"
   fi
+}
+
+
+# Rotate a string anf trim it.
+# @params {int} $1 rotation amount, ex: 20
+# @params {int} $2 trim amount, ex: 50
+# @params {string} $3 string to rotate, ex: "hello world"
+rotate_left_and_trim() {
+  local rot_amt=$1
+  local trim_amt=$2
+  local str=$3
+  rot_amt=$(echo "$rot_amt ${#str}" | awk '{print ($1%$2)}')
+  local front_str=$(echo "$str" | cut -b "-${rot_amt}")
+  local back_str=$(echo "$str" | cut -b "$((rot_amt+1))-")
+  str="${back_str}${front_str}"
+  str=$(echo $str | cut -b "-$((trim_amt-1))")
+  echo "$str"
 }
 
 # Print a left caret separator
@@ -144,6 +166,103 @@ network_activity() {
   echo -n "},"
 }
 
+music_previous() {
+  local music_status=$(playerctl status)
+  if [[ "$music_status" -ne "Playing" && "$music_status" -ne "Paused" ]]; then
+    return
+  fi
+  
+  local bg="#d14081" # magenta pantone
+  local icon=""
+  if [[ "$music_status" == "Paused" ]]; then
+    bg="#2b2d42" # space cadet
+  fi
+
+  separator $bg $bg_separator_previous # background left previous block
+  bg_separator_previous=$bg
+
+  echo -n ",{"
+  echo -n "\"name\":\"id_music_previous\","
+  echo -n "\"full_text\":\" ${icon}\","
+  echo -n "\"background\":\"$bg\","
+  common
+  echo -n "}"
+}
+
+now_playing() {
+  local music_status=$(playerctl status)
+  if [[ "$music_status" -ne "Playing" && "$music_status" -ne "Paused" ]]; then
+    return
+  fi
+
+  local bg="#d14081" # magenta pantone
+  local icon=""
+  if [[ $music_status == "Paused" ]]; then
+    icon=""
+    bg="#2b2d42" # space cadet
+  fi
+
+  local output=$(playerctl metadata --format "{{artist}} - {{title}}" )
+  
+  if [[ $output == $CURRENT_STRING ]]; then
+    if (( CURRENT_POS > "${#output}}" )); then
+      CURRENT_POS=0
+      output=$(echo "$output" | cut -b "-$CHAR_LIMIT")
+    else
+      CURRENT_POS=$((CURRENT_POS+3))
+      output=$(rotate_left_and_trim $CURRENT_POS $CHAR_LIMIT "$CURRENT_STRING")
+    fi
+  else 
+    CURRENT_STRING=$output
+    CURRENT_POS=0
+    output=$(echo "$output" | cut -b "-$CHAR_LIMIT")
+  fi
+
+  echo -n ",{"
+  echo -n "\"name\":\"id_now_playing\","
+  echo -n "\"full_text\":\" ${icon} $output \","
+  echo -n "\"background\":\"$bg\","
+  common
+  echo -n "}"
+}
+
+music_next() {
+  local music_status=$(playerctl status)
+  if [[ "$music_status" -ne "Playing" && "$music_status" -ne "Paused" ]]; then
+    return
+  fi
+  
+  local bg="#d14081" # magenta pantone
+  local icon=""
+  if [[ "$music_status" == "Paused" ]]; then
+    bg="#2b2d42" # space cadet
+  fi
+
+  echo -n ",{"
+  echo -n "\"name\":\"id_music_next\","
+  echo -n "\"full_text\":\"${icon} \","
+  echo -n "\"background\":\"$bg\","
+  common
+  echo -n "},"
+}
+
+cpu_temp() {
+  local bg="#3949AB"
+  separator $bg $bg_separator_previous
+
+  local temp=$(sensors k10temp-pci-00c3 | awk '/Tdie:/ { printf "%.1f", $2 }')
+  local icon=""
+  if (( $(echo $temp | awk '{print ($1 >= 75.0) }') )); then
+    icon=""
+  fi
+  echo -n ",{"
+  echo -n "\"name\":\"id_cpu_temp\","
+  echo -n "\"full_text\":\" $icon $temp°\","
+  echo -n "\"background\":\"$bg\","
+  common
+  echo -n "}"
+}
+
 disk_usage() {
   local bg="#3949AB"
   
@@ -207,23 +326,6 @@ cpu_usage() {
   common
   echo -n "},"
   bg_separator_previous=$bg
-}
-
-cpu_temp() {
-  local bg="#3949AB"
-  separator $bg $bg_separator_previous
-
-  local temp=$(sensors k10temp-pci-00c3 | awk '/Tdie:/ { printf "%.1f", $2 }')
-  local icon=""
-  if (( temp > 75 )); then
-    icon=""
-  fi
-  echo -n ",{"
-  echo -n "\"name\":\"id_cpu_temp\","
-  echo -n "\"full_text\":\" $icon $temp°\","
-  echo -n "\"background\":\"$bg\","
-  common
-  echo -n "}"
 }
 
 battery() {
@@ -329,6 +431,9 @@ do
 	echo -n ",["
   vpn
   network_activity
+  music_previous
+  now_playing
+  music_next
   cpu_temp
   disk_usage
   memory
@@ -362,10 +467,17 @@ do
       xterm -e bandwhich &
     fi
 
-  # CHECK UPDATES
-  elif [[ $line == *"name"*"id_systemupdate"* ]]; then
-    xterm -e /home/aidan/bin/i3status/i3status/click_checkupdates.sh &
-    systemupdate > /dev/null
+  # Previous Music
+  elif [[ $line == *"name"*"id_music_previous"* ]]; then
+    playerctl previous
+
+  # Now Playing
+  elif [[ $line == *"name"*"id_now_playing"* ]]; then
+    playerctl play-pause
+
+  # Next Music
+  elif [[ $line == *"name"*"id_music_next"* ]]; then
+    playerctl next
 
   # CPU
   elif [[ $line == *"name"*"id_cpu_usage"* ]] \
@@ -373,14 +485,19 @@ do
     || [[ $line == *"name"*"id_disk_usage"* ]]; then
     xterm -e htop &
 
+  # VOLUME
+  elif [[ $line == *"name"*"id_volume"* ]]; then
+    xterm -e alsamixer &
+
   # TIME
   elif [[ $line == *"name"*"id_time"* ]]; then
     xterm -e /home/aidan/bin/i3status/i3status/click_time.sh &
 
-  # VOLUME
-  elif [[ $line == *"name"*"id_volume"* ]]; then
-    xterm -e alsamixer &
-  
+  # CHECK UPDATES
+  elif [[ $line == *"name"*"id_systemupdate"* ]]; then
+    xterm -e /home/aidan/bin/i3status/i3status/click_checkupdates.sh &
+    systemupdate > /dev/null
+
   # TURN OFF DISPLAY
   elif [[ $line == *"name"*"id_display_off"* ]]; then
     sleep 1
