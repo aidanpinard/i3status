@@ -146,10 +146,11 @@ network_activity() {
 
 disk_usage() {
   local bg="#3949AB"
-  separator $bg $bg_separator_previous
+  
   local used=0
   local avail=0
   local temp=0
+
   while read -r i
   do 
       temp=$(echo -n $i | awk '{print $2}')
@@ -157,6 +158,7 @@ disk_usage() {
       temp=$(echo -n $i | awk '{print $3}')
       avail=$(( $avail+$temp ))
   done <<<$(df --output=source,used,avail | \grep --color=auto '/dev/*')
+
   echo -n ",{"
   echo -n "\"name\":\"id_disk_usage\","
   echo -n "\"full_text\":\"  $(awk "BEGIN {printf \"%.1f\", ${used}*100/${avail}}")%\","
@@ -166,15 +168,19 @@ disk_usage() {
 }
 
 memory() {
+  local bg="#3949AB"
+
   echo -n ",{"
   echo -n "\"name\":\"id_memory\","
   echo -n "\"full_text\":\"  $(free -b | awk '/Mem:/ { printf "%.1f", ($2-$7)*100/$2 }')%\","
-  echo -n "\"background\":\"#3949AB\","
+  echo -n "\"background\":\"$bg\","
   common
   echo -n "}"
 }
 
 cpu_usage() {
+  local bg="#3949AB"
+
   # Get the total CPU statistics, discarding the 'cpu ' prefix.
   CPU=($(sed -n 's/^cpu\s//p' /proc/stat))
   IDLE=${CPU[3]} # Just the idle CPU time.
@@ -197,10 +203,27 @@ cpu_usage() {
   echo -n ",{"
   echo -n "\"name\":\"id_cpu_usage\","
   echo -n "\"full_text\":\"  $DIFF_USAGE% \","
-  echo -n "\"background\":\"#3949AB\","
+  echo -n "\"background\":\"$bg\","
   common
   echo -n "},"
-  bg_separator_previous="#3949AB"
+  bg_separator_previous=$bg
+}
+
+cpu_temp() {
+  local bg="#3949AB"
+  separator $bg $bg_separator_previous
+
+  local temp=$(sensors k10temp-pci-00c3 | awk '/Tdie:/ { printf "%.1f", $2 }')
+  local icon=""
+  if (( temp > 75 )); then
+    icon=""
+  fi
+  echo -n ",{"
+  echo -n "\"name\":\"id_cpu_temp\","
+  echo -n "\"full_text\":\" $icon $temp°\","
+  echo -n "\"background\":\"$bg\","
+  common
+  echo -n "}"
 }
 
 battery() {
@@ -306,6 +329,7 @@ do
 	echo -n ",["
   vpn
   network_activity
+  cpu_temp
   disk_usage
   memory
   cpu_usage
