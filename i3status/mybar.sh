@@ -51,7 +51,7 @@ readable_mbps() {
     echo "? K"
   elif [ $kbps -gt 1000 ]; then
     local mbps_int=$(( kbps / 1000 ))
-    local mbps_dec=$(awk 'BEGIN { print int((((kbps%1000)/10)+10)/10)')
+    local mbps_dec=$(awk "BEGIN { printf \"%d\", ((($kbps%1000)/10)+5)/10 }")
     echo "${mbps_int}.${mbps_dec}Mbps"
   else
     echo "${kbps}Kbps"
@@ -88,15 +88,17 @@ common() {
 
 # Status bar Functions
 
-myvpn_on() {
+vpn() {
   local bg="#424242" # grey darken-3
   local icon=""
   if nmcli con show --active | \grep --color=auto -i tun0 > /dev/null; then
     bg="#E53935" # rouge
     icon=""
   fi
-  separator $bg "#000000" # background left previous block
+
+  separator $bg $bg_separator_previous # background left previous block
   bg_separator_previous=$bg
+  
   echo -n ",{"
   echo -n "\"name\":\"id_vpn\","      
   echo -n "\"full_text\":\" ${icon} VPN \","
@@ -201,7 +203,7 @@ cpu_usage() {
   bg_separator_previous="#3949AB"
 }
 
-battery1() {
+battery() {
   if [ -f /sys/class/power_supply/BAT1/uevent ]; then
     local bg="#D69E2E"
     separator $bg $bg_separator_previous
@@ -300,13 +302,14 @@ echo '[]'                   # We send an empty first array of blocks to make the
 # Now send blocks with information forever:
 (while :;
 do
+  bg_separator_previous="#000000"
 	echo -n ",["
-  myvpn_on
+  vpn
   network_activity
   disk_usage
   memory
   cpu_usage
-  battery1
+  battery
   volume
   mydate
   systemupdate
